@@ -31,11 +31,11 @@ def load_and_scale_image(image_path, new_height):
     return pygame.transform.scale(image, (new_width, new_height))
 
 # Load assets
-player_img = load_and_scale_image("car.png", 80)  # Player car
-block_img = load_and_scale_image("car2.png", 80)  # Opponent car
-block_img = pygame.transform.rotate(block_img, 180)  # Rotate opponent car
+player_img = load_and_scale_image("car.png", 80)  
+block_img = load_and_scale_image("car2.png", 80)  
+block_img = pygame.transform.rotate(block_img, 180)  
 background_img = pygame.image.load("road.png")
-background_img = pygame.transform.scale(background_img, (SCREEN_WIDTH, SCREEN_HEIGHT))  # Fit screen
+background_img = pygame.transform.scale(background_img, (SCREEN_WIDTH, SCREEN_HEIGHT))  
 
 # Player dimensions
 player_width, player_height = player_img.get_size()
@@ -48,7 +48,7 @@ ROAD_TOP = -100
 current_lane_index = 1
 player_x = LANES[current_lane_index] - player_width // 2
 player_y = SCREEN_HEIGHT - player_height - 20
-target_x = player_x  # For lane switching animation
+target_x = player_x  
 
 # Blocks and power-ups
 blocks = []
@@ -107,7 +107,7 @@ while running:
             if event.type == pygame.QUIT:
                 running = False
             if event.type == pygame.KEYDOWN:
-                if event.key == pygame.K_a:  # Move left
+                if event.key == pygame.K_a:  
                     current_lane_index = max(0, current_lane_index - 1)
                 if event.key == pygame.K_d:  # Move right
                     current_lane_index = min(len(LANES) - 1, current_lane_index + 1)
@@ -115,18 +115,18 @@ while running:
         # Smooth lane transition animation
         target_x = LANES[current_lane_index] - player_width // 2
         if player_x != target_x:
-            player_x += (target_x - player_x) // 5  # Smooth transition
+            player_x += (target_x - player_x) // 5  
 
         # Add new blocks
         active_lanes = [block[2] for block in blocks]
         if len(blocks) < MAX_BLOCKS:
             available_lanes = [lane for lane in LANES if lane not in active_lanes]
-            if available_lanes and random.randint(1, 100) <= 3:  # Lower spawn chance
+            if available_lanes and random.randint(1, 100) <= 3:  
                 new_lane = random.choice(available_lanes)
                 blocks.append([new_lane - block_img.get_width() // 2, ROAD_TOP, new_lane])
 
         # Spawn power-ups
-        if random.randint(1, 300) == 1:  # Rare chance
+        if random.randint(1, 300) == 1:  
             power_lane = random.choice(LANES)
             power_ups.append([power_lane, ROAD_TOP, "shield"])
 
@@ -146,8 +146,8 @@ while running:
             block_rect = pygame.Rect(block[0] + 10, block[1] + 10, block_img.get_width() - 20, block_img.get_height() - 20)
             if player_rect.colliderect(block_rect):
                 if shield_active:
-                    shield_active = False  # Deactivate shield
-                    blocks.remove(block)  # Remove block
+                    shield_active = False  
+                    blocks.remove(block)  
                 else:
                     # Game over
                     if score > high_score:
