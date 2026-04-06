@@ -22,3 +22,7 @@ Before running the game, ensure you have Python installed and the `pygame` libra
 
 ```bash
 pip install pygame
+```
+
+## 🕶 Demo
+<img width="803" height="636" alt="demo" src="https://github.com/user-attachments/assets/80e87ea3-4a2b-4c9a-9e2a-75b2f903c0cd" />
