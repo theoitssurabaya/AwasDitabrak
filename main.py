@@ -1,16 +1,14 @@
-"""
-Main entry point for AwasDitabrak game.
+"""AwasDitabrak - Watch Out for the Crash!
 
-Run this file to start the game:
-    python main.py
+A fun arcade game built with Python and Pygame.
+Run with: python main.py
 """
 
 import pygame
-from game import Game
+from src.core.game import Game
 
 
 def main():
-    """Initialize pygame and run the game."""
     pygame.init()
     game = Game()
     game.run()

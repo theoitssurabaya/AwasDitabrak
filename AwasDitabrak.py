@@ -1,12 +1,7 @@
-"""
-AwasDitabrak - Watch Out for the Crash!
+"""Backward compatibility wrapper for AwasDitabrak.
 
-Backward compatibility wrapper. Import from main module instead.
-
-To run the game:
-    python main.py
-    or
-    python AwasDitabrak.py
+Import from main module instead.
+Run with: python AwasDitabrak.py or python main.py
 """
 
 from main import main
