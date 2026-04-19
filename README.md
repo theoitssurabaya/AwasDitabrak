@@ -62,16 +62,35 @@
 | **M** | Go to Main Menu |
 | **R** | Restart Game |
 
+## 📁 Project Structure
+
+The code is organized into modular components for better maintainability:
+
+```
+AwasDitabrak/
+├── main.py              # Entry point
+├── game.py              # Main game controller (350 lines)
+├── constants.py         # Configuration values
+├── game_state.py        # Game state management
+├── menu.py              # Menu system
+├── ui_renderer.py       # UI rendering
+├── powerup.py           # Power-up mechanics
+├── particle.py          # Visual effects
+└── MODULES.md           # Technical documentation
+```
+
+For detailed module documentation, see [MODULES.md](MODULES.md).
+
 ## 🛠️ Prerequisites
 Ensure you have Python 3.7+ installed and pygame library:
 
 ```bash
-pip install pygame
+pip install -r requirements.txt
 ```
 
 Or use the included virtual environment:
 ```bash
-./venv/bin/python AwasDitabrak.py
+./venv/bin/python main.py
 ```
 
 ## 🚀 How to Play
