@@ -157,7 +157,7 @@ class MenuScreen:
             screen.blit(high_score_text, (self.screen_width // 2 - high_score_text.get_width() // 2, 230))
 
         stats = self.fonts['small'].render(
-            f"Level Reached: {game_state.level} | Blocks Dodged: {game_state.blocks_dodged}",
+            f"Level: {game_state.level} | Dodged: {game_state.blocks_dodged} | Coins: {game_state.coins_collected}",
             True, WHITE
         )
         screen.blit(stats, (self.screen_width // 2 - stats.get_width() // 2, 300))

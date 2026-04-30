@@ -12,6 +12,7 @@ from src.constants import (
 from src.ui.menu import GameMode, Difficulty, MenuScreen, create_fonts
 from src.core.game_state import GameState
 from src.entities.powerup import PowerUp
+from src.entities.coin import Coin
 from src.ui.ui_renderer import UIRenderer
 
 
@@ -33,6 +34,7 @@ class Game:
 
         self.high_score_file = HIGH_SCORE_FILE
         self.high_score = self.load_high_score()
+        self.bg_y = 0
 
     def load_assets(self):
         """Load game images with fallback to placeholders."""
@@ -165,29 +167,64 @@ class Game:
         if self.game_state.power_up_manager.is_active("speed"):
             current_block_speed *= 1.5
 
+        # Gradual speed increase
+        self.game_state.block_speed += 0.002
+        self.bg_y = (self.bg_y + current_block_speed) % SCREEN_HEIGHT
+
         target_x = ROAD_LANES[self.game_state.current_lane_index] - player_width // 2
         if self.game_state.player_x != target_x:
             self.game_state.player_x += (target_x - self.game_state.player_x) // 5
 
-        active_lanes = [block[2] for block in self.game_state.blocks]
+        active_lanes = [block["lane"] for block in self.game_state.blocks]
         if len(self.game_state.blocks) < self.game_state.max_blocks:
             available_lanes = [lane for lane in ROAD_LANES if lane not in active_lanes]
             if available_lanes and random.randint(1, 100) <= BLOCK_SPAWN_CHANCE:
                 new_lane = random.choice(available_lanes)
-                self.game_state.blocks.append([new_lane - block_width // 2, ROAD_TOP, new_lane])
+                is_zig_zag = self.game_state.level >= 2 and random.random() < 0.3
+                self.game_state.blocks.append({
+                    "x": new_lane - block_width // 2,
+                    "y": ROAD_TOP,
+                    "lane": new_lane,
+                    "zig_zag": is_zig_zag,
+                    "target_lane": new_lane,
+                    "speed_x": 0.0
+                })
 
         if random.randint(1, POWERUP_SPAWN_CHANCE) == 1:
             power_lane = random.choice(ROAD_LANES)
             power_type = random.choice(list(PowerUp.POWER_UP_TYPES.keys()))
             self.game_state.power_ups.append(PowerUp(power_lane, ROAD_TOP, power_type))
 
+        if random.randint(1, 100) == 1:
+            coin_lane = random.choice(ROAD_LANES)
+            self.game_state.coins.append(Coin(coin_lane, ROAD_TOP))
+
         for block in self.game_state.blocks:
-            block[1] += current_block_speed
+            block["y"] += current_block_speed
+            if block["zig_zag"]:
+                # Randomly change lane
+                if random.random() < 0.02 and block["y"] > 0 and block["y"] < SCREEN_HEIGHT - 200:
+                    current_idx = ROAD_LANES.index(block["target_lane"]) if block["target_lane"] in ROAD_LANES else 0
+                    possible_moves = []
+                    if current_idx > 0:
+                        possible_moves.append(ROAD_LANES[current_idx - 1])
+                    if current_idx < len(ROAD_LANES) - 1:
+                        possible_moves.append(ROAD_LANES[current_idx + 1])
+                    if possible_moves:
+                        block["target_lane"] = random.choice(possible_moves)
+                
+                target_block_x = block["target_lane"] - block_width // 2
+                if block["x"] != target_block_x:
+                    block["x"] += (target_block_x - block["x"]) * 0.05
+                    
         for power_up in self.game_state.power_ups:
             power_up.y += current_block_speed // 2
+        for coin in self.game_state.coins:
+            coin.y += current_block_speed // 2
 
-        self.game_state.blocks = [block for block in self.game_state.blocks if block[1] < SCREEN_HEIGHT]
+        self.game_state.blocks = [block for block in self.game_state.blocks if block["y"] < SCREEN_HEIGHT]
         self.game_state.power_ups = [p for p in self.game_state.power_ups if p.y < SCREEN_HEIGHT]
+        self.game_state.coins = [c for c in self.game_state.coins if c.y < SCREEN_HEIGHT]
 
         self.game_state.update_particles()
         self.game_state.power_up_manager.update()
@@ -197,7 +234,7 @@ class Game:
 
         blocks_to_remove = []
         for block in self.game_state.blocks:
-            block_rect = pygame.Rect(block[0] + 10, block[1] + 10, block_width - 20, block_height - 20)
+            block_rect = pygame.Rect(block["x"] + 10, block["y"] + 10, block_width - 20, block_height - 20)
             if player_rect.colliderect(block_rect):
                 blocks_to_remove.append(block)
                 for _ in range(5):
@@ -213,6 +250,7 @@ class Game:
                 elif self.game_state.power_up_manager.is_active("shield"):
                     self.game_state.power_up_manager.active["shield"] = []
                 else:
+                    self.game_state.shake_frames = 20
                     self.mode = GameMode.GAME_OVER
                     if self.game_state.score > self.high_score:
                         self.high_score = self.game_state.score
@@ -241,6 +279,21 @@ class Game:
 
         self.game_state.power_ups = [p for p in self.game_state.power_ups if p not in powerups_to_remove]
 
+        coins_to_remove = []
+        for coin in self.game_state.coins:
+            coin_rect = pygame.Rect(coin.x - coin.radius, coin.y - coin.radius, coin.radius * 2, coin.radius * 2)
+            if player_rect.colliderect(coin_rect):
+                coins_to_remove.append(coin)
+                self.game_state.score += 50
+                self.game_state.coins_collected += 1
+                for _ in range(5):
+                    self.game_state.add_particle(
+                        coin.x, coin.y,
+                        random.uniform(-3, 3), random.uniform(-4, -1),
+                        (255, 255, 0), 30
+                    )
+        self.game_state.coins = [c for c in self.game_state.coins if c not in coins_to_remove]
+
         score_increment = 1
         if self.game_state.power_up_manager.is_active("double"):
             score_increment = 2
@@ -267,23 +320,38 @@ class Game:
             self.menu_screen.render_difficulty_select(self.screen)
 
         elif self.mode in (GameMode.PLAYING, GameMode.PAUSED):
-            self.screen.blit(self.background_img, (0, 0))
+            shake_x, shake_y = 0, 0
+            if self.mode == GameMode.PLAYING and getattr(self.game_state, "shake_frames", 0) > 0:
+                shake_x = random.randint(-5, 5)
+                shake_y = random.randint(-5, 5)
+
+            # Scrolling background
+            bg_rect1 = self.background_img.get_rect()
+            bg_rect1.topleft = (0, int(self.bg_y) - SCREEN_HEIGHT)
+            self.screen.blit(self.background_img, (bg_rect1.x + shake_x, bg_rect1.y + shake_y))
+            
+            bg_rect2 = self.background_img.get_rect()
+            bg_rect2.topleft = (0, int(self.bg_y))
+            self.screen.blit(self.background_img, (bg_rect2.x + shake_x, bg_rect2.y + shake_y))
 
             for block in self.game_state.blocks:
-                self.screen.blit(self.block_img, (block[0], block[1]))
+                self.screen.blit(self.block_img, (block["x"] + shake_x, block["y"] + shake_y))
 
             for power_up in self.game_state.power_ups:
                 power_up.draw(self.screen)
 
+            for coin in self.game_state.coins:
+                coin.draw(self.screen)
+
             UIRenderer.render_particles(self.screen, self.game_state.particles)
 
             if self.game_state.power_up_manager.is_active("shield"):
-                UIRenderer.render_shield_glow(self.screen, self.game_state.player_x,
-                                             self.game_state.player_y,
+                UIRenderer.render_shield_glow(self.screen, self.game_state.player_x + shake_x,
+                                             self.game_state.player_y + shake_y,
                                              self.player_img.get_width(),
                                              self.player_img.get_height())
 
-            self.screen.blit(self.player_img, (int(self.game_state.player_x), int(self.game_state.player_y)))
+            self.screen.blit(self.player_img, (int(self.game_state.player_x) + shake_x, int(self.game_state.player_y) + shake_y))
 
             UIRenderer.render_hud(self.screen, self.game_state, self.fonts, SCREEN_WIDTH)
 

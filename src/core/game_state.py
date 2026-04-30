@@ -25,9 +25,13 @@ class GameState:
         self.high_score = 0
 
         # Collections
-        self.blocks = []
+        self.blocks = []  # Now stores dicts: {"x": x, "y": y, "lane": lane, "zig_zag": bool, "target_lane": lane, "speed_x": float}
         self.power_ups = []
         self.particles = []
+        self.coins = []
+        
+        # Effects
+        self.shake_frames = 0
 
         # Difficulty Settings
         self.base_block_speed = INITIAL_BLOCK_SPEED
@@ -41,6 +45,7 @@ class GameState:
         # Statistics
         self.blocks_dodged = 0
         self.powerups_collected = 0
+        self.coins_collected = 0
 
     def reset(self):
         """Reset game state for a new game."""
@@ -49,12 +54,15 @@ class GameState:
         self.blocks.clear()
         self.power_ups.clear()
         self.particles.clear()
+        self.coins.clear()
         self.power_up_manager.deactivate_all()
+        self.shake_frames = 0
 
         diff_config = self.difficulty.get_config()
         self.block_speed = self.base_block_speed * diff_config["speed_multiplier"]
         self.blocks_dodged = 0
         self.powerups_collected = 0
+        self.coins_collected = 0
 
     def add_particle(self, x: float, y: float, vx: float, vy: float,
                     color: tuple, lifetime: int):
@@ -64,6 +72,9 @@ class GameState:
         for particle in self.particles:
             particle.update()
         self.particles = [p for p in self.particles if p.is_alive()]
+        
+        if self.shake_frames > 0:
+            self.shake_frames -= 1
 
     def check_score_milestone(self) -> bool:
         return self.score >= self.level * self.level_up_score
