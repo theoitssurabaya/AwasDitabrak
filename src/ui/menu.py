@@ -67,18 +67,32 @@ class MenuScreen:
         self.selected_difficulty = 1
 
     def render_main_menu(self, screen: pygame.Surface, high_score: int):
+        import math
         from src.constants import YELLOW, WHITE, GRAY, BLACK
-        screen.fill(BLACK)
+        
+        overlay = pygame.Surface((self.screen_width, self.screen_height), pygame.SRCALPHA)
+        overlay.fill((0, 0, 0, 180))
+        screen.blit(overlay, (0, 0))
+
+        time_ms = pygame.time.get_ticks()
+        y_offset = math.sin(time_ms * 0.003) * 10
 
         title = self.fonts['large'].render("AWAS DITABRAK", True, YELLOW)
-        screen.blit(title, (self.screen_width // 2 - title.get_width() // 2, 80))
+        screen.blit(title, (self.screen_width // 2 - title.get_width() // 2, 80 + y_offset))
 
         subtitle = self.fonts['medium'].render("Watch Out for the Crash!", True, WHITE)
-        screen.blit(subtitle, (self.screen_width // 2 - subtitle.get_width() // 2, 140))
+        screen.blit(subtitle, (self.screen_width // 2 - subtitle.get_width() // 2, 140 + y_offset))
 
         for i, item in enumerate(self.menu_items):
-            color = YELLOW if i == self.selected_index else WHITE
-            text = self.fonts['medium'].render(item, True, color)
+            if i == self.selected_index:
+                pulse = (math.sin(time_ms * 0.008) + 1) / 2
+                color = (int(YELLOW[0]), int(YELLOW[1]), int(YELLOW[2]*pulse))
+                display_text = f">  {item}  <"
+            else:
+                color = WHITE
+                display_text = item
+                
+            text = self.fonts['medium'].render(display_text, True, color)
             screen.blit(text, (self.screen_width // 2 - text.get_width() // 2, 240 + i * 50))
 
         controls = self.fonts['tiny'].render("↑↓ Navigate  | ENTER Select", True, GRAY)
@@ -86,7 +100,10 @@ class MenuScreen:
 
     def render_high_score(self, screen: pygame.Surface, high_score: int):
         from src.constants import YELLOW, WHITE, CYAN, BLACK
-        screen.fill(BLACK)
+        
+        overlay = pygame.Surface((self.screen_width, self.screen_height), pygame.SRCALPHA)
+        overlay.fill((0, 0, 0, 180))
+        screen.blit(overlay, (0, 0))
 
         title = self.fonts['large'].render("HIGH SCORE", True, YELLOW)
         screen.blit(title, (self.screen_width // 2 - title.get_width() // 2, 150))
@@ -98,15 +115,29 @@ class MenuScreen:
         screen.blit(back, (self.screen_width // 2 - back.get_width() // 2, self.screen_height - 60))
 
     def render_difficulty_select(self, screen: pygame.Surface):
+        import math
         from src.constants import YELLOW, WHITE, GRAY, BLACK
-        screen.fill(BLACK)
+        
+        overlay = pygame.Surface((self.screen_width, self.screen_height), pygame.SRCALPHA)
+        overlay.fill((0, 0, 0, 180))
+        screen.blit(overlay, (0, 0))
+
+        time_ms = pygame.time.get_ticks()
+        y_offset = math.sin(time_ms * 0.003) * 10
 
         title = self.fonts['large'].render("SELECT DIFFICULTY", True, YELLOW)
-        screen.blit(title, (self.screen_width // 2 - title.get_width() // 2, 80))
+        screen.blit(title, (self.screen_width // 2 - title.get_width() // 2, 80 + y_offset))
 
         for i, item in enumerate(self.difficulty_items):
-            color = YELLOW if i == self.selected_difficulty else WHITE
-            text = self.fonts['medium'].render(item, True, color)
+            if i == self.selected_difficulty:
+                pulse = (math.sin(time_ms * 0.008) + 1) / 2
+                color = (int(YELLOW[0]), int(YELLOW[1]), int(YELLOW[2]*pulse))
+                display_text = f">  {item}  <"
+            else:
+                color = WHITE
+                display_text = item
+                
+            text = self.fonts['medium'].render(display_text, True, color)
             screen.blit(text, (self.screen_width // 2 - text.get_width() // 2, 240 + i * 60))
 
         descriptions = [
@@ -140,13 +171,20 @@ class MenuScreen:
         screen.blit(menu, (self.screen_width // 2 - menu.get_width() // 2, self.screen_height // 2 + 50))
 
     def render_game_over(self, screen: pygame.Surface, game_state):
+        import math
         from src.constants import RED, YELLOW, WHITE, CYAN, BLACK
-        screen.fill(BLACK)
+        
+        overlay = pygame.Surface((self.screen_width, self.screen_height), pygame.SRCALPHA)
+        overlay.fill((150, 0, 0, 150))
+        screen.blit(overlay, (0, 0))
+
+        time_ms = pygame.time.get_ticks()
+        y_offset = math.sin(time_ms * 0.003) * 10
 
         game_over_text = self.fonts['large'].render("GAME OVER", True, RED)
-        screen.blit(game_over_text, (self.screen_width // 2 - game_over_text.get_width() // 2, 80))
+        screen.blit(game_over_text, (self.screen_width // 2 - game_over_text.get_width() // 2, 80 + y_offset))
 
-        score_text = self.fonts['medium'].render(f"Final Score: {game_state.score}", True, YELLOW)
+        score_text = self.fonts['medium'].render(f"Final Score: {int(game_state.score)}", True, YELLOW)
         screen.blit(score_text, (self.screen_width // 2 - score_text.get_width() // 2, 180))
 
         if game_state.score > game_state.high_score:

@@ -11,7 +11,7 @@ class UIRenderer:
     def render_hud(screen: pygame.Surface, game_state, fonts: dict, screen_width: int):
         from src.constants import WHITE, YELLOW, CYAN, BLUE, GREEN, RED, GRAY
 
-        score_text = fonts['small'].render(f"Score: {game_state.score}", True, WHITE)
+        score_text = fonts['small'].render(f"Score: {int(game_state.score)}", True, WHITE)
         screen.blit(score_text, (10, 10))
 
         high_score_text = fonts['small'].render(f"High Score: {game_state.high_score}", True, YELLOW)
@@ -47,11 +47,6 @@ class UIRenderer:
         diff_name = game_state.difficulty.name
         diff_text = fonts['tiny'].render(f"Difficulty: {diff_name}", True, GRAY)
         screen.blit(diff_text, (screen_width // 2 - 60, 10))
-
-    @staticmethod
-    def render_particles(screen: pygame.Surface, particles: List):
-        for particle in particles:
-            particle.draw(screen)
 
     @staticmethod
     def render_shield_glow(screen: pygame.Surface, player_x: float, player_y: float,

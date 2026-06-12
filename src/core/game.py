@@ -13,6 +13,8 @@ from src.ui.menu import GameMode, Difficulty, MenuScreen, create_fonts
 from src.core.game_state import GameState
 from src.entities.powerup import PowerUp
 from src.entities.coin import Coin
+from src.entities.player import PlayerCar
+from src.entities.enemy import EnemyCar
 from src.ui.ui_renderer import UIRenderer
 
 
@@ -35,6 +37,8 @@ class Game:
         self.high_score_file = HIGH_SCORE_FILE
         self.high_score = self.load_high_score()
         self.bg_y = 0
+        self.speed_lines = []
+        self.camera_sway = 0.0
 
     def load_assets(self):
         """Load game images with fallback to placeholders."""
@@ -76,10 +80,7 @@ class Game:
     def start_game(self, difficulty: Difficulty):
         self.game_state = GameState(difficulty)
         self.game_state.high_score = self.high_score
-        player_width, player_height = self.player_img.get_size()
-        self.game_state.player_x = ROAD_LANES[self.game_state.current_lane_index] - player_width // 2
-        self.game_state.player_y = SCREEN_HEIGHT - player_height - 20
-        self.game_state.target_x = self.game_state.player_x
+        self.game_state.player = PlayerCar(self.player_img, 1)
         self.mode = GameMode.PLAYING
 
     def handle_menu_input(self) -> bool:
@@ -126,10 +127,10 @@ class Game:
                 return False
             if event.type == pygame.KEYDOWN:
                 if event.key in (pygame.K_a, pygame.K_LEFT):
-                    self.game_state.current_lane_index = max(0, self.game_state.current_lane_index - 1)
+                    self.game_state.player.current_lane_index = max(0, self.game_state.player.current_lane_index - 1)
                 elif event.key in (pygame.K_d, pygame.K_RIGHT):
-                    self.game_state.current_lane_index = min(len(ROAD_LANES) - 1,
-                                                             self.game_state.current_lane_index + 1)
+                    self.game_state.player.current_lane_index = min(len(ROAD_LANES) - 1,
+                                                             self.game_state.player.current_lane_index + 1)
                 elif event.key == pygame.K_SPACE:
                     self.mode = GameMode.PAUSED
                 elif event.key == pygame.K_ESCAPE:
@@ -159,7 +160,27 @@ class Game:
                     self.mode = GameMode.MENU
         return True
 
-    def update_gameplay(self):
+    def update_background(self, dt: float, speed: float):
+        self.bg_y = (self.bg_y + speed * dt) % SCREEN_HEIGHT
+        
+        # Speed lines
+        if random.random() < 0.8 * (dt * 60):
+            self.speed_lines.append({
+                "x": random.choice([20, 40, SCREEN_WIDTH-20, SCREEN_WIDTH-40]),
+                "y": 0,
+                "length": random.randint(30, 100),
+                "speed": speed * 1.5
+            })
+            
+        for line in self.speed_lines:
+            line["y"] += line["speed"] * dt
+            
+        self.speed_lines = [l for l in self.speed_lines if l["y"] < SCREEN_HEIGHT]
+
+    def update_gameplay(self, dt: float):
+        if dt > 0.1:  # Prevent huge jumps if lag
+            dt = 0.1
+            
         player_width, player_height = self.player_img.get_size()
         block_width, block_height = self.block_img.get_size()
 
@@ -168,81 +189,82 @@ class Game:
             current_block_speed *= 1.5
 
         # Gradual speed increase
-        self.game_state.block_speed += 0.002
-        self.bg_y = (self.bg_y + current_block_speed) % SCREEN_HEIGHT
+        self.game_state.block_speed += 0.12 * dt
+        self.update_background(dt, current_block_speed)
 
-        target_x = ROAD_LANES[self.game_state.current_lane_index] - player_width // 2
-        if self.game_state.player_x != target_x:
-            self.game_state.player_x += (target_x - self.game_state.player_x) // 5
+        self.game_state.player.update(dt)
 
-        active_lanes = [block["lane"] for block in self.game_state.blocks]
+        # Camera sway based on player velocity
+        player_vx = 0.0
+        if hasattr(self.game_state.player, 'last_x'):
+            player_vx = (self.game_state.player.x - self.game_state.player.last_x) / dt
+        self.game_state.player.last_x = self.game_state.player.x
+        
+        target_sway = -player_vx * 0.02
+        self.camera_sway += (target_sway - self.camera_sway) * 5.0 * dt
+
+        # Power-up trails
+        for p_type, data in PowerUp.POWER_UP_TYPES.items():
+            if self.game_state.power_up_manager.is_active(p_type):
+                if random.random() < 0.5 * (dt * 60):
+                    self.game_state.add_particle(
+                        self.game_state.player.rect.centerx + random.uniform(-15, 15),
+                        self.game_state.player.rect.centery + random.uniform(-15, 15),
+                        random.uniform(-1, 1), random.uniform(1, 3),
+                        data["color"], random.randint(20, 40)
+                    )
+
+        active_lanes = [block.target_lane for block in self.game_state.blocks]
         if len(self.game_state.blocks) < self.game_state.max_blocks:
             available_lanes = [lane for lane in ROAD_LANES if lane not in active_lanes]
             if available_lanes and random.randint(1, 100) <= BLOCK_SPAWN_CHANCE:
                 new_lane = random.choice(available_lanes)
                 is_zig_zag = self.game_state.level >= 2 and random.random() < 0.3
-                self.game_state.blocks.append({
-                    "x": new_lane - block_width // 2,
-                    "y": ROAD_TOP,
-                    "lane": new_lane,
-                    "zig_zag": is_zig_zag,
-                    "target_lane": new_lane,
-                    "speed_x": 0.0
-                })
+                self.game_state.blocks.add(EnemyCar(
+                    self.block_img,
+                    new_lane - block_width // 2,
+                    ROAD_TOP,
+                    new_lane,
+                    is_zig_zag
+                ))
 
         if random.randint(1, POWERUP_SPAWN_CHANCE) == 1:
             power_lane = random.choice(ROAD_LANES)
             power_type = random.choice(list(PowerUp.POWER_UP_TYPES.keys()))
-            self.game_state.power_ups.append(PowerUp(power_lane, ROAD_TOP, power_type))
+            self.game_state.power_ups.add(PowerUp(power_lane, ROAD_TOP, power_type))
 
         if random.randint(1, 100) == 1:
             coin_lane = random.choice(ROAD_LANES)
-            self.game_state.coins.append(Coin(coin_lane, ROAD_TOP))
+            self.game_state.coins.add(Coin(coin_lane, ROAD_TOP))
 
-        for block in self.game_state.blocks:
-            block["y"] += current_block_speed
-            if block["zig_zag"]:
-                # Randomly change lane
-                if random.random() < 0.02 and block["y"] > 0 and block["y"] < SCREEN_HEIGHT - 200:
-                    current_idx = ROAD_LANES.index(block["target_lane"]) if block["target_lane"] in ROAD_LANES else 0
-                    possible_moves = []
-                    if current_idx > 0:
-                        possible_moves.append(ROAD_LANES[current_idx - 1])
-                    if current_idx < len(ROAD_LANES) - 1:
-                        possible_moves.append(ROAD_LANES[current_idx + 1])
-                    if possible_moves:
-                        block["target_lane"] = random.choice(possible_moves)
-                
-                target_block_x = block["target_lane"] - block_width // 2
-                if block["x"] != target_block_x:
-                    block["x"] += (target_block_x - block["x"]) * 0.05
-                    
-        for power_up in self.game_state.power_ups:
-            power_up.y += current_block_speed // 2
-        for coin in self.game_state.coins:
-            coin.y += current_block_speed // 2
+        # Exhaust particles
+        if random.random() < 0.3 * (dt * 60):
+            self.game_state.add_particle(
+                self.game_state.player.rect.centerx + random.uniform(-10, 10),
+                self.game_state.player.rect.bottom - 10,
+                random.uniform(-0.5, 0.5), random.uniform(2, 4),
+                (150, 150, 150), random.randint(15, 30)
+            )
 
-        self.game_state.blocks = [block for block in self.game_state.blocks if block["y"] < SCREEN_HEIGHT]
-        self.game_state.power_ups = [p for p in self.game_state.power_ups if p.y < SCREEN_HEIGHT]
-        self.game_state.coins = [c for c in self.game_state.coins if c.y < SCREEN_HEIGHT]
+        self.game_state.blocks.update(dt, current_block_speed)
+        self.game_state.power_ups.update(dt, current_block_speed)
+        self.game_state.coins.update(dt, current_block_speed)
 
-        self.game_state.update_particles()
-        self.game_state.power_up_manager.update()
+        self.game_state.update_particles(dt)
+        self.game_state.power_up_manager.update(dt)
 
-        player_rect = pygame.Rect(self.game_state.player_x + 10, self.game_state.player_y + 10,
-                                 player_width - 20, player_height - 20)
+        player_hitbox = self.game_state.player.get_hitbox()
 
         blocks_to_remove = []
         for block in self.game_state.blocks:
-            block_rect = pygame.Rect(block["x"] + 10, block["y"] + 10, block_width - 20, block_height - 20)
-            if player_rect.colliderect(block_rect):
+            if player_hitbox.colliderect(block.get_hitbox()):
                 blocks_to_remove.append(block)
-                for _ in range(5):
+                for _ in range(15):
                     self.game_state.add_particle(
-                        self.game_state.player_x + player_width // 2,
-                        self.game_state.player_y + player_height // 2,
-                        random.uniform(-3, 3), random.uniform(-3, 1),
-                        RED, 30
+                        self.game_state.player.x + player_width // 2,
+                        self.game_state.player.y + player_height // 2,
+                        random.uniform(-6, 6), random.uniform(-6, 2),
+                        RED, random.randint(30, 60)
                     )
 
                 if self.game_state.power_up_manager.is_active("invincible"):
@@ -250,139 +272,173 @@ class Game:
                 elif self.game_state.power_up_manager.is_active("shield"):
                     self.game_state.power_up_manager.active["shield"] = []
                 else:
-                    self.game_state.shake_frames = 20
+                    self.game_state.shake_time = 0.3
                     self.mode = GameMode.GAME_OVER
-                    if self.game_state.score > self.high_score:
-                        self.high_score = self.game_state.score
+                    if int(self.game_state.score) > self.high_score:
+                        self.high_score = int(self.game_state.score)
                         self.game_state.high_score = self.high_score
                     return
 
-        self.game_state.blocks = [b for b in self.game_state.blocks if b not in blocks_to_remove]
+        for block in blocks_to_remove:
+            block.kill()
         self.game_state.blocks_dodged += len(blocks_to_remove)
 
-        powerups_to_remove = []
         for power_up in self.game_state.power_ups:
-            pu_rect = pygame.Rect(power_up.x - power_up.radius, power_up.y - power_up.radius,
-                                 power_up.radius * 2, power_up.radius * 2)
-            if player_rect.colliderect(pu_rect):
-                powerups_to_remove.append(power_up)
+            if player_hitbox.colliderect(power_up.rect):
+                power_up.kill()
                 self.game_state.power_up_manager.apply_powerup(power_up.type)
                 self.game_state.powerups_collected += 1
 
                 color = PowerUp.POWER_UP_TYPES[power_up.type]["color"]
-                for _ in range(8):
+                self.game_state.add_floating_text(power_up.x, power_up.y - 20, power_up.type.upper(), color, self.fonts['small'])
+
+                for _ in range(12):
                     self.game_state.add_particle(
                         power_up.x, power_up.y,
-                        random.uniform(-4, 4), random.uniform(-5, -1),
-                        color, 40
+                        random.uniform(-5, 5), random.uniform(-6, -2),
+                        color, random.randint(40, 70)
                     )
 
-        self.game_state.power_ups = [p for p in self.game_state.power_ups if p not in powerups_to_remove]
-
-        coins_to_remove = []
         for coin in self.game_state.coins:
-            coin_rect = pygame.Rect(coin.x - coin.radius, coin.y - coin.radius, coin.radius * 2, coin.radius * 2)
-            if player_rect.colliderect(coin_rect):
-                coins_to_remove.append(coin)
+            if player_hitbox.colliderect(coin.rect):
+                coin.kill()
                 self.game_state.score += 50
                 self.game_state.coins_collected += 1
-                for _ in range(5):
+                
+                self.game_state.add_floating_text(coin.x, coin.y - 20, "+50", YELLOW, self.fonts['small'])
+
+                for _ in range(10):
                     self.game_state.add_particle(
                         coin.x, coin.y,
-                        random.uniform(-3, 3), random.uniform(-4, -1),
-                        (255, 255, 0), 30
+                        random.uniform(-4, 4), random.uniform(-5, -2),
+                        YELLOW, random.randint(30, 50)
                     )
-        self.game_state.coins = [c for c in self.game_state.coins if c not in coins_to_remove]
 
-        score_increment = 1
+        score_increment = 60.0 * dt
         if self.game_state.power_up_manager.is_active("double"):
-            score_increment = 2
+            score_increment *= 2.0
         self.game_state.score += score_increment
 
         if self.game_state.check_score_milestone():
             self.game_state.level_up()
 
-            for _ in range(10):
+            for _ in range(20):
                 self.game_state.add_particle(
                     SCREEN_WIDTH // 2, SCREEN_HEIGHT // 2,
-                    random.uniform(-5, 5), random.uniform(-5, 5),
-                    YELLOW, 50
+                    random.uniform(-8, 8), random.uniform(-8, 8),
+                    YELLOW, random.randint(50, 80)
                 )
+
+    def draw_background(self, shake_x: int = 0, shake_y: int = 0):
+        # Scrolling background
+        bg_rect1 = self.background_img.get_rect()
+        bg_rect1.topleft = (0, int(self.bg_y) - SCREEN_HEIGHT)
+        self.screen.blit(self.background_img, (bg_rect1.x + shake_x, bg_rect1.y + shake_y))
+        
+        bg_rect2 = self.background_img.get_rect()
+        bg_rect2.topleft = (0, int(self.bg_y))
+        self.screen.blit(self.background_img, (bg_rect2.x + shake_x, bg_rect2.y + shake_y))
+        
+        # Road dashes
+        dash_length = 40
+        dash_gap = 40
+        total_dash = dash_length + dash_gap
+        offset = int(self.bg_y) % total_dash
+        
+        for divider in [277, 400, 522]:
+            for y in range(-total_dash, SCREEN_HEIGHT + total_dash, total_dash):
+                draw_y = y + offset
+                if -dash_length < draw_y < SCREEN_HEIGHT:
+                    dash_surface = pygame.Surface((4, dash_length), pygame.SRCALPHA)
+                    dash_surface.fill((255, 255, 255, 150))
+                    self.screen.blit(dash_surface, (divider - 2 + shake_x, draw_y + shake_y))
+        
+        # Speed lines rendering
+        for line in self.speed_lines:
+            line_surface = pygame.Surface((3, line["length"]), pygame.SRCALPHA)
+            line_surface.fill((255, 255, 255, 100))
+            self.screen.blit(line_surface, (line["x"] + shake_x, int(line["y"] - line["length"]) + shake_y))
 
     def render(self):
         if self.mode == GameMode.MENU:
+            self.draw_background()
             if self.viewing_high_score:
                 self.menu_screen.render_high_score(self.screen, self.high_score)
             else:
                 self.menu_screen.render_main_menu(self.screen, self.high_score)
 
         elif self.mode == GameMode.DIFFICULTY_SELECT:
+            self.draw_background()
             self.menu_screen.render_difficulty_select(self.screen)
 
-        elif self.mode in (GameMode.PLAYING, GameMode.PAUSED):
+        elif self.mode in (GameMode.PLAYING, GameMode.PAUSED, GameMode.GAME_OVER):
             shake_x, shake_y = 0, 0
-            if self.mode == GameMode.PLAYING and getattr(self.game_state, "shake_frames", 0) > 0:
+            if self.mode == GameMode.PLAYING and getattr(self.game_state, "shake_time", 0.0) > 0:
                 shake_x = random.randint(-5, 5)
                 shake_y = random.randint(-5, 5)
 
-            # Scrolling background
-            bg_rect1 = self.background_img.get_rect()
-            bg_rect1.topleft = (0, int(self.bg_y) - SCREEN_HEIGHT)
-            self.screen.blit(self.background_img, (bg_rect1.x + shake_x, bg_rect1.y + shake_y))
-            
-            bg_rect2 = self.background_img.get_rect()
-            bg_rect2.topleft = (0, int(self.bg_y))
-            self.screen.blit(self.background_img, (bg_rect2.x + shake_x, bg_rect2.y + shake_y))
+            shake_x += int(self.camera_sway)
 
-            for block in self.game_state.blocks:
-                self.screen.blit(self.block_img, (block["x"] + shake_x, block["y"] + shake_y))
+            self.draw_background(shake_x, shake_y)
 
-            for power_up in self.game_state.power_ups:
-                power_up.draw(self.screen)
-
-            for coin in self.game_state.coins:
-                coin.draw(self.screen)
-
-            UIRenderer.render_particles(self.screen, self.game_state.particles)
+            if shake_x != 0 or shake_y != 0:
+                for block in self.game_state.blocks:
+                    self.screen.blit(block.image, (block.rect.x + shake_x, block.rect.y + shake_y))
+                for power_up in self.game_state.power_ups:
+                    self.screen.blit(power_up.image, (power_up.rect.x + shake_x, power_up.rect.y + shake_y))
+                for coin in self.game_state.coins:
+                    self.screen.blit(coin.image, (coin.rect.x + shake_x, coin.rect.y + shake_y))
+                for particle in self.game_state.particles:
+                    self.screen.blit(particle.image, (particle.rect.x + shake_x, particle.rect.y + shake_y))
+                for text in self.game_state.floating_texts:
+                    self.screen.blit(text.image, (text.rect.x + shake_x, text.rect.y + shake_y))
+                self.screen.blit(self.game_state.player.image, (self.game_state.player.rect.x + shake_x, self.game_state.player.rect.y + shake_y))
+            else:
+                self.game_state.blocks.draw(self.screen)
+                self.game_state.power_ups.draw(self.screen)
+                self.game_state.coins.draw(self.screen)
+                self.game_state.particles.draw(self.screen)
+                self.game_state.floating_texts.draw(self.screen)
+                self.screen.blit(self.game_state.player.image, self.game_state.player.rect.topleft)
 
             if self.game_state.power_up_manager.is_active("shield"):
-                UIRenderer.render_shield_glow(self.screen, self.game_state.player_x + shake_x,
-                                             self.game_state.player_y + shake_y,
+                UIRenderer.render_shield_glow(self.screen, self.game_state.player.x + shake_x,
+                                             self.game_state.player.y + shake_y,
                                              self.player_img.get_width(),
                                              self.player_img.get_height())
 
-            self.screen.blit(self.player_img, (int(self.game_state.player_x) + shake_x, int(self.game_state.player_y) + shake_y))
-
-            UIRenderer.render_hud(self.screen, self.game_state, self.fonts, SCREEN_WIDTH)
+            if self.mode in (GameMode.PLAYING, GameMode.PAUSED):
+                UIRenderer.render_hud(self.screen, self.game_state, self.fonts, SCREEN_WIDTH)
 
             if self.mode == GameMode.PAUSED:
                 self.menu_screen.render_pause_menu(self.screen)
-
-        elif self.mode == GameMode.GAME_OVER:
-            self.screen.blit(self.background_img, (0, 0))
-            self.menu_screen.render_game_over(self.screen, self.game_state)
+            elif self.mode == GameMode.GAME_OVER:
+                self.menu_screen.render_game_over(self.screen, self.game_state)
 
         pygame.display.flip()
 
     def run(self):
         """Main game loop."""
         running = True
+        dt = 0.0
 
         while running:
             if self.mode == GameMode.MENU:
                 running = self.handle_menu_input()
+                self.update_background(dt, 500.0)
             elif self.mode == GameMode.DIFFICULTY_SELECT:
                 running = self.handle_difficulty_input()
+                self.update_background(dt, 500.0)
             elif self.mode == GameMode.PLAYING:
                 running = self.handle_gameplay_input()
-                self.update_gameplay()
+                self.update_gameplay(dt)
             elif self.mode == GameMode.PAUSED:
                 running = self.handle_pause_input()
             elif self.mode == GameMode.GAME_OVER:
                 running = self.handle_gameover_input()
 
             self.render()
-            self.clock.tick(FPS)
+            dt = self.clock.tick(FPS) / 1000.0
 
         self.save_high_score()
         pygame.quit()
