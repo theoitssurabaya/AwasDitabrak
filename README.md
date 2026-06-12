@@ -1,128 +1,129 @@
-# 🚗 Awas Ditabrak - Watch Out for the Crash!
+# 🚗 Awas Ditabrak - Watch Out for Crash!
 
-An addictive 2D arcade game built with Python and Pygame. Navigate through traffic, collect coins and power-ups, and beat your high score!
+Fun game make with Python and Pygame. You drive, avoid metal beasts (cars), grab shiny round things (coins), and get big score!
 
-The game has been recently overhauled with **advanced cinematic visuals** (camera sway, floating text, parallax roads) and is completely compiled for the web using **WebAssembly**!
+Game have new pretty things! Screen shake, floating words, road lines go fast. Works in magic web browser!
 
-## 🌐 Play the Web Version
+## 🌐 Play on Magic Web
 
-You don't need to install anything to play! The game is compiled to WebAssembly via `pygbag`.
-If you are hosting this repository on GitHub Pages using the `gh-pages` branch, you can play the game instantly in your browser.
+No install! Game use WebAssembly magic (`pygbag`).
+If use GitHub Pages, just open browser and play!
 
 ## 🎮 Quick Start (Desktop)
 
-### Prerequisites
+### Need These First
 - Python 3.12+
 - Pygame 2.6+
 - Pygbag 0.9.3+
 
-### Installation
+### How to Install
 
 ```bash
-# Install dependencies
+# Get things game need
 pip install -r requirements.txt
 
-# Or use the included virtual environment
+# Or use magic box (venv)
 source venv/bin/activate
 ```
 
-### Run the Game Locally
+### Run Game on Big Box
 
 ```bash
 python main.py
 ```
 
-### Build for Web (WebAssembly)
+### Build for Web
 
 ```bash
 pygbag --build .
 ```
-This generates a deployable static web bundle in `build/web/`.
+Make game folder in `build/web/`.
 
 ## 🕹️ How to Play
 
-### Controls
+### Button Smash
 
-| Action | Keys |
+| What Do | Buttons |
 |--------|------|
-| Move Left | `A` or `←` |
-| Move Right | `D` or `→` |
-| Pause Game | `SPACE` |
-| Return to Menu | `ESC` |
-| Navigate Menus | `↑` `↓` |
-| Select Menu Item | `ENTER` |
-| Restart Game | `R` (on Game Over) |
-| Go to Menu | `M` (on Game Over) |
+| Go Left | `A` or `←` |
+| Go Right | `D` or `→` |
+| Stop Game | `SPACE` |
+| Go Back | `ESC` |
+| Move in Menu | `↑` `↓` |
+| Pick Thing | `ENTER` |
+| Start Over | `R` (When Dead) |
+| Menu | `M` (When Dead) |
 
-### Objective
+### What to Do
 
-1. **Survive**: Avoid incoming zig-zagging cars on the highway.
-2. **Collect**: Grab coins for +50 points and power-ups for special abilities.
-3. **Score**: Earn points continuously every second you survive.
-4. **Level Up**: Reach score milestones to increase difficulty.
-5. **Beat High Score**: Try to beat your best score.
+1. **Not Die**: Dodge zig-zag metal beasts on big path.
+2. **Take Things**: Grab shiny coins for +50. Grab glowing boxes for magic power.
+3. **Get Big Number**: Stay alive, number go up!
+4. **Get Harder**: Number get big, game get fast!
+5. **Be the Best**: Get biggest number ever!
 
-## ✨ Features & Visuals
+## ✨ Pretty Things & Magic
 
-### Cinematic Visual System
-- **Camera Sway**: The entire game camera sways physically based on your steering momentum.
-- **Parallax Road Dashes**: High-speed scrolling dashed lines generate an intense sense of velocity.
-- **Floating Feedback**: Collecting coins (+50) or Power-Ups spawns satisfying floating pop-up text.
-- **Particle System**: Exhaust trails emit from your car, violent geometry bursts occur on crashes, and colored auras trail your car when power-ups are active!
-- **Frozen Crash-Cam**: Dying freezes the game state and washes the screen in a dramatic red overlay.
+### Eye Candy & Ear Candy
+- **Camera Shake**: Screen go wobble when you steer hard!
+- **Fast Road Lines**: Lines zoom past, make you feel fast!
+- **Floating Words**: Grab shiny thing, words float up!
+- **Dust & Sparkles**: Smoke from car, shapes explode when crash, magic glow when power-up active!
+- **Red Freeze**: Die, screen turn red and freeze. Much sad.
+- **Magic Noise**: Menu have slow drum, game have fast drum! You hear all!
 
-### 4 Power-Up Types
+### 4 Magic Powers
 
-| Power-Up | Color | Duration | Effect |
+| Power | Color | Time | What Do |
 |----------|-------|----------|--------|
-| **Shield** 🛡️ | Blue | 5s | Absorbs one collision |
-| **Speed Boost** ⚡ | Green | 4s | Blocks move 1.5x faster |
-| **Double Points** 2️⃣ | Yellow | 6s | Earn 2x score |
-| **Invincible** ★ | Red | 3s | Immune to collisions |
+| **Shield** 🛡️ | Blue | 5s | Stop one crash! |
+| **Go Fast** ⚡ | Green | 4s | Bad things move faster! |
+| **Two Times** 2️⃣ | Yellow | 6s | Number go up twice as fast! |
+| **No Hurt** ★ | Red | 3s | Cannot die! |
 
-### 3 Difficulty Levels
+### 3 Hardness Levels
 
-| Difficulty | Speed | Block Limit | Feeling |
+| Hardness | Speed | Bad Things | Feel |
 |-----------|-------|-------------|---------|
-| **Easy** | 0.8x | 2 blocks | Relaxed |
-| **Normal** | 1.0x | 3 blocks | Balanced |
-| **Hard** | 1.3x | 4 blocks | Intense |
+| **Baby** | 0.8x | 2 | Sleepy |
+| **Normal** | 1.0x | 3 | Good |
+| **Ooga Booga**| 1.3x | 4 | Crazy |
 
-## 🏗️ Architecture
+## 🏗️ How Game Made
 
-- **Pygame Sprites**: All game entities inherit from `pygame.sprite.Sprite` and are batched via `pygame.sprite.Group` for hyper-efficient rendering and collision detection.
-- **Asyncio Loop**: The game loop runs natively as an `async def` and yields `await asyncio.sleep(0)` every frame. This guarantees that the game doesn't block the browser's JavaScript event loop when exported via Pygbag.
-- **Delta Time (dt)**: All movement, physics, animations, and particle lifetimes are multiplied by delta time, ensuring the game runs at the exact same speed regardless of monitor refresh rate or lag spikes.
+- **Pygame Sprites**: Game things use `pygame.sprite.Sprite`. Put in `pygame.sprite.Group` to draw fast and hit fast.
+- **Asyncio Loop**: Game run with `async def`. Do `await asyncio.sleep(0)`. Make sure web browser not break.
+- **Time Magic (dt)**: Move, shake, and sparkles use time math. Game always same speed on any box.
 
-## 📁 Project Structure
+## 📁 Cave Drawings Structure
 
 ```
 AwasDitabrak/
-├── assets/images/          # Game sprites
-├── src/                    # Source code
-│   ├── constants.py        # Game configuration
+├── assets/images/          # Pictures
+├── src/                    # Brain of game
+│   ├── constants.py        # Magic numbers
 │   ├── core/
-│   │   ├── game.py        # Main async game loop
-│   │   └── game_state.py  # Centralized sprite groups
+│   │   ├── game.py        # Big game loop
+│   │   └── game_state.py  # Groups of things
 │   ├── ui/
-│   │   ├── menu.py        # Animated overlays & UI
-│   │   └── ui_renderer.py # HUD rendering
+│   │   ├── menu.py        # Pretty menus
+│   │   └── ui_renderer.py # Draw score
 │   └── entities/
-│       ├── coin.py        # Pulsing coin sprites
-│       ├── enemy.py       # Zig-zag rotation physics
-│       ├── particle.py    # Particles & Floating Text
-│       ├── player.py      # Player physics & bounds
-│       └── powerup.py     # Power-up drop system
-├── build/web/             # Pygbag generated WASM deployment
-├── main.py                # Asyncio Entry point
-├── requirements.txt       # Dependencies
-└── README.md              # This file
+│       ├── coin.py        # Shiny things
+│       ├── enemy.py       # Bad zig-zag things
+│       ├── particle.py    # Sparkles & Words
+│       ├── player.py      # You
+│       └── powerup.py     # Magic boxes
+├── build/web/             # Web magic
+├── main.py                # Start here
+├── requirements.txt       # Things needed
+└── README.md              # You look at this
 ```
 
 ## 📄 License
 
-This project is free to use and modify.
+Free to use! Make game yours!
 
-## 🤝 Contributing
+## 🤝 Help Make Better
 
-Feel free to fork, modify, and improve this project!
+Copy, fix, make more fun!

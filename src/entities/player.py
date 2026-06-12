@@ -15,13 +15,30 @@ class PlayerCar(pygame.sprite.Sprite):
         self.rect.topleft = (int(self.x), int(self.y))
         
         self.target_x = self.x
+        self.stun_timer = 0.0
+        self.spin_angle = 0.0
 
-    def update(self, dt: float):
+    def update(self, dt: float, is_raining: bool = False):
         self.target_x = ROAD_LANES[self.current_lane_index] - self.base_image.get_width() // 2
+        
+        if self.stun_timer > 0:
+            self.stun_timer -= dt
+            self.spin_angle = (self.spin_angle + 720 * dt) % 360
+            center = self.rect.center
+            self.image = pygame.transform.rotate(self.base_image, self.spin_angle)
+            self.rect = self.image.get_rect(center=center)
+            # Drift slowly to target instead of snapping
+            self.x += (self.target_x - self.x) * 2 * dt
+            self.rect.centerx = int(self.x + self.base_image.get_width() // 2)
+            self.rect.y = int(self.y)
+            return
+            
+        self.spin_angle = 0.0
         
         vx = 0.0
         if abs(self.x - self.target_x) > 0.5:
-            vx = (self.target_x - self.x) * 12
+            snap_velocity = 3.0 if is_raining else 12.0
+            vx = (self.target_x - self.x) * snap_velocity
             self.x += vx * dt
         else:
             self.x = self.target_x

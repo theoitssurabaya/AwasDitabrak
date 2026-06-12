@@ -14,6 +14,7 @@ class GameMode(Enum):
     PAUSED = 4
     GAME_OVER = 5
     HOW_TO_PLAY = 6
+    COUNTDOWN = 7
 
 
 class Difficulty(Enum):
@@ -136,27 +137,32 @@ class MenuScreen:
         screen.blit(title, (self.screen_width // 2 - title.get_width() // 2, 50))
         
         instructions = [
-            ("OBJECTIVE", YELLOW),
-            ("Avoid cars and survive as long as possible!", WHITE),
-            ("Collect coins for +50 points.", WHITE),
-            ("", WHITE),
-            ("CONTROLS", YELLOW),
-            ("A/D or Left/Right Arrows: Steer", WHITE),
-            ("SPACE: Pause", WHITE),
-            ("", WHITE),
-            ("POWER-UPS", YELLOW),
-            ("Shield (Blue): Absorbs one crash", BLUE),
-            ("Speed Boost (Green): Game moves 1.5x faster", GREEN),
-            ("Double Points (Yellow): 2x score multiplier", YELLOW),
-            ("Invincible (Red): Immune to crashes", RED),
+            ("OBJECTIVE", YELLOW, 'small'),
+            ("Dodge traffic and survive to level up!", WHITE, 'tiny'),
+            ("Coins: +50 pts  |  Near Miss: +100 pts", WHITE, 'tiny'),
+            ("", WHITE, 'tiny'),
+            ("CONTROLS", YELLOW, 'small'),
+            ("A/D or Left/Right Arrows: Steer", WHITE, 'tiny'),
+            ("SPACE: Pause  |  M: Return to Menu", WHITE, 'tiny'),
+            ("", WHITE, 'tiny'),
+            ("ENEMIES & HAZARDS", YELLOW, 'small'),
+            ("Oil Slicks: Spins you out of control!", (255, 150, 50), 'tiny'),
+            ("Level 2+: Beware of Fast Cars & Police!", (255, 150, 50), 'tiny'),
+            ("", WHITE, 'tiny'),
+            ("POWER-UPS", YELLOW, 'small'),
+            ("Shield (Blue): Absorbs one crash", BLUE, 'tiny'),
+            ("Speed Boost (Green): Game moves 1.5x faster", GREEN, 'tiny'),
+            ("Double Points (Yellow): 2x score multiplier", YELLOW, 'tiny'),
+            ("Invincible (Red): Plow through traffic!", RED, 'tiny'),
         ]
         
-        y = 140
-        for text, color in instructions:
+        y = 125
+        for text, color, font_type in instructions:
             if text:
-                line = UIRenderer.render_text_with_outline(self.fonts['small'], text, color, outline_width=1)
+                line = UIRenderer.render_text_with_outline(self.fonts[font_type], text, color, outline_width=1)
                 screen.blit(line, (self.screen_width // 2 - line.get_width() // 2, y))
-            y += 30
+            
+            y += 24 if font_type == 'tiny' else 32
 
         back = UIRenderer.render_text_with_outline(self.fonts['medium'], "Press SPACE to return", WHITE)
         screen.blit(back, (self.screen_width // 2 - back.get_width() // 2, self.screen_height - 50))
@@ -246,3 +252,30 @@ class MenuScreen:
 
         restart_text = UIRenderer.render_text_with_outline(self.fonts['medium'], "Press R to Restart or M for Menu", WHITE)
         screen.blit(restart_text, (self.screen_width // 2 - restart_text.get_width() // 2, self.screen_height - 80))
+
+    def render_countdown(self, screen: pygame.Surface, time_left: float):
+        import math
+        from src.constants import YELLOW, CYAN, WHITE
+        
+        # Draw a slight darkening overlay
+        overlay = pygame.Surface((self.screen_width, self.screen_height), pygame.SRCALPHA)
+        overlay.fill((0, 0, 0, 100))
+        screen.blit(overlay, (0, 0))
+
+        # Determine what text to show based on time_left
+        import math
+        number = math.ceil(time_left)
+        text = str(number) if number > 0 else "GO!"
+        color = YELLOW if number > 0 else CYAN
+        
+        # Add a pulse effect to the scale/alpha
+        scale_mod = time_left - math.floor(time_left)
+        pulse = 1.0 + (scale_mod * 0.5) if number > 0 else 1.5
+        
+        # Scale the text
+        base_text = UIRenderer.render_text_with_outline(self.fonts['large'], text, color, outline_width=2, shadow_offset=4)
+        new_size = (int(base_text.get_width() * pulse), int(base_text.get_height() * pulse))
+        scaled_text = pygame.transform.scale(base_text, new_size)
+        
+        screen.blit(scaled_text, (self.screen_width // 2 - scaled_text.get_width() // 2, 
+                                  self.screen_height // 2 - scaled_text.get_height() // 2))

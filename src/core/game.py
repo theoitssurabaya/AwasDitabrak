@@ -28,7 +28,18 @@ class Game:
         self.clock = pygame.time.Clock()
         self.fonts = create_fonts()
 
+        try:
+            pygame.mixer.init()
+            self.audio_enabled = True
+        except Exception as e:
+            print(f"Warning: Could not initialize audio: {e}")
+            self.audio_enabled = False
+            
+        self.sounds = {}
         self.load_assets()
+        
+        from src.core.weather import AtmosphereManager
+        self.atmosphere = AtmosphereManager()
 
         self.mode = GameMode.MENU
         self.game_state = None
@@ -40,6 +51,7 @@ class Game:
         self.bg_y = 0
         self.speed_lines = []
         self.camera_sway = 0.0
+        self.current_music = None
 
     def load_assets(self):
         """Load game images with fallback to placeholders."""
@@ -57,6 +69,30 @@ class Game:
             self.block_img.fill((255, 0, 0))
             self.background_img = pygame.Surface((SCREEN_WIDTH, SCREEN_HEIGHT))
             self.background_img.fill((40, 40, 40))
+
+        if self.audio_enabled:
+            for sfx in ['blip', 'select', 'coin', 'powerup', 'crash']:
+                try:
+                    self.sounds[sfx] = pygame.mixer.Sound(f"assets/sounds/{sfx}.wav")
+                except Exception as e:
+                    print(f"Warning: Could not load sound {sfx}: {e}")
+
+    def play_sound(self, name: str):
+        if self.audio_enabled and name in self.sounds:
+            self.sounds[name].play()
+
+    def set_music(self, track_name: str):
+        if not self.audio_enabled or self.current_music == track_name:
+            return
+        self.current_music = track_name
+        try:
+            if track_name:
+                pygame.mixer.music.load(f"assets/sounds/{track_name}.wav")
+                pygame.mixer.music.play(-1)
+            else:
+                pygame.mixer.music.stop()
+        except Exception as e:
+            print(f"Warning: Could not play music {track_name}: {e}")
 
     def load_and_scale_image(self, image_path: str, new_height: int) -> pygame.Surface:
         image = pygame.image.load(image_path)
@@ -82,7 +118,9 @@ class Game:
         self.game_state = GameState(difficulty)
         self.game_state.high_score = self.high_score
         self.game_state.player = PlayerCar(self.player_img, 1)
-        self.mode = GameMode.PLAYING
+        self.game_state.countdown_time = 3.0
+        self.atmosphere.reset()
+        self.mode = GameMode.COUNTDOWN
 
     def handle_menu_input(self) -> bool:
         for event in pygame.event.get():
@@ -90,12 +128,15 @@ class Game:
                 return False
             if event.type == pygame.KEYDOWN:
                 if event.key == pygame.K_UP:
+                    self.play_sound('blip')
                     self.menu_screen.selected_index = (self.menu_screen.selected_index - 1) % len(
                         self.menu_screen.menu_items)
                 elif event.key == pygame.K_DOWN:
+                    self.play_sound('blip')
                     self.menu_screen.selected_index = (self.menu_screen.selected_index + 1) % len(
                         self.menu_screen.menu_items)
                 elif event.key == pygame.K_RETURN:
+                    self.play_sound('select')
                     if self.menu_screen.selected_index == 0:
                         self.mode = GameMode.DIFFICULTY_SELECT
                     elif self.menu_screen.selected_index == 1:
@@ -105,6 +146,7 @@ class Game:
                     elif self.menu_screen.selected_index == 3:
                         return False
                 elif event.key == pygame.K_SPACE and self.viewing_high_score:
+                    self.play_sound('select')
                     self.viewing_high_score = False
         return True
 
@@ -123,12 +165,15 @@ class Game:
                 return False
             if event.type == pygame.KEYDOWN:
                 if event.key == pygame.K_UP:
+                    self.play_sound('blip')
                     self.menu_screen.selected_difficulty = (self.menu_screen.selected_difficulty - 1) % len(
                         self.menu_screen.difficulty_items)
                 elif event.key == pygame.K_DOWN:
+                    self.play_sound('blip')
                     self.menu_screen.selected_difficulty = (self.menu_screen.selected_difficulty + 1) % len(
                         self.menu_screen.difficulty_items)
                 elif event.key == pygame.K_RETURN:
+                    self.play_sound('select')
                     difficulty = list(Difficulty)[self.menu_screen.selected_difficulty]
                     self.start_game(difficulty)
         return True
@@ -139,13 +184,17 @@ class Game:
                 return False
             if event.type == pygame.KEYDOWN:
                 if event.key in (pygame.K_a, pygame.K_LEFT):
-                    self.game_state.player.current_lane_index = max(0, self.game_state.player.current_lane_index - 1)
+                    if getattr(self.game_state.player, 'stun_timer', 0) <= 0:
+                        self.game_state.player.current_lane_index = max(0, self.game_state.player.current_lane_index - 1)
                 elif event.key in (pygame.K_d, pygame.K_RIGHT):
-                    self.game_state.player.current_lane_index = min(len(ROAD_LANES) - 1,
-                                                             self.game_state.player.current_lane_index + 1)
+                    if getattr(self.game_state.player, 'stun_timer', 0) <= 0:
+                        self.game_state.player.current_lane_index = min(len(ROAD_LANES) - 1,
+                                                              self.game_state.player.current_lane_index + 1)
                 elif event.key == pygame.K_SPACE:
+                    self.play_sound('select')
                     self.mode = GameMode.PAUSED
                 elif event.key == pygame.K_ESCAPE:
+                    self.play_sound('select')
                     self.mode = GameMode.MENU
         return True
 
@@ -155,8 +204,21 @@ class Game:
                 return False
             if event.type == pygame.KEYDOWN:
                 if event.key == pygame.K_SPACE:
-                    self.mode = GameMode.PLAYING
+                    self.play_sound('select')
+                    self.game_state.countdown_time = 3.0
+                    self.mode = GameMode.COUNTDOWN
                 elif event.key == pygame.K_m:
+                    self.play_sound('select')
+                    self.mode = GameMode.MENU
+        return True
+
+    def handle_countdown_input(self) -> bool:
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                return False
+            if event.type == pygame.KEYDOWN:
+                if event.key == pygame.K_ESCAPE:
+                    self.play_sound('select')
                     self.mode = GameMode.MENU
         return True
 
@@ -166,9 +228,11 @@ class Game:
                 return False
             if event.type == pygame.KEYDOWN:
                 if event.key == pygame.K_r:
+                    self.play_sound('select')
                     self.mode = GameMode.DIFFICULTY_SELECT
                     self.menu_screen.selected_difficulty = 1
                 elif event.key == pygame.K_m:
+                    self.play_sound('select')
                     self.mode = GameMode.MENU
         return True
 
@@ -199,6 +263,10 @@ class Game:
         current_block_speed = self.game_state.block_speed
         if self.game_state.power_up_manager.is_active("speed"):
             current_block_speed *= 1.5
+        
+        self.atmosphere.update(dt)
+        self.game_state.player.update(dt, self.atmosphere.is_raining)
+        self.game_state.base_block_speed = current_block_speed
 
         # Gradual speed increase
         self.game_state.block_speed += 0.12 * dt
@@ -226,10 +294,13 @@ class Game:
                         data["color"], random.randint(20, 40)
                     )
 
-        # Prevent unavoidable walls by ensuring the top row always has at least one open lane
-        top_row_lanes = [block.target_lane for block in self.game_state.blocks if block.rect.y < 150]
-        # Only consider a lane 'active' (blocked) if the car is in the top half of the screen
-        active_lanes = [block.target_lane for block in self.game_state.blocks if block.rect.y < SCREEN_HEIGHT // 2]
+        top_row_lanes = []
+        active_lanes = []
+        for block in self.game_state.blocks:
+            if block.rect.y < 150:
+                top_row_lanes.append(block.target_lane)
+            if block.rect.y < SCREEN_HEIGHT // 2:
+                active_lanes.append(block.target_lane)
         
         if len(self.game_state.blocks) < self.game_state.max_blocks:
             if len(top_row_lanes) < len(ROAD_LANES) - 1:
@@ -237,8 +308,22 @@ class Game:
                 spawn_chance = BLOCK_SPAWN_CHANCE * (dt * 60.0)
                 if available_lanes and (random.random() * 100) <= spawn_chance:
                     new_lane = random.choice(available_lanes)
-                    is_zig_zag = self.game_state.level >= 2 and random.random() < 0.3
-                    self.game_state.blocks.add(EnemyCar(
+                    
+                    from src.entities.enemy import EnemyCar, SportsCar, PoliceCar
+                    
+                    enemy_type = EnemyCar
+                    is_zig_zag = False
+                    
+                    if self.game_state.level >= 2:
+                        rand_val = random.random()
+                        if rand_val < 0.1:
+                            enemy_type = SportsCar
+                        elif rand_val < 0.2:
+                            enemy_type = PoliceCar
+                        elif rand_val < 0.5:
+                            is_zig_zag = True
+                    
+                    self.game_state.blocks.add(enemy_type(
                         self.block_img,
                         new_lane - block_width // 2,
                         ROAD_TOP,
@@ -258,6 +343,12 @@ class Game:
             coin_lane = random.choice(ROAD_LANES)
             self.game_state.coins.add(Coin(coin_lane, ROAD_TOP))
 
+        hazard_chance = (1.0 / 300.0) * (dt * 60.0)
+        if random.random() <= hazard_chance:
+            from src.entities.hazard import OilSlick
+            hazard_lane = random.choice(ROAD_LANES)
+            self.game_state.hazards.add(OilSlick(hazard_lane - 35, ROAD_TOP))
+
         # Exhaust particles
         if random.random() < 0.3 * (dt * 60):
             self.game_state.add_particle(
@@ -267,14 +358,28 @@ class Game:
                 (150, 150, 150), random.randint(15, 30)
             )
 
-        self.game_state.blocks.update(dt, current_block_speed)
+        self.game_state.blocks.update(dt, current_block_speed, player_x=self.game_state.player.x)
         self.game_state.power_ups.update(dt, current_block_speed)
         self.game_state.coins.update(dt, current_block_speed)
+        self.game_state.hazards.update(dt, current_block_speed)
 
         self.game_state.update_particles(dt)
         self.game_state.power_up_manager.update(dt)
 
         player_hitbox = self.game_state.player.get_hitbox()
+
+        # Police Car Particles
+        for block in self.game_state.blocks:
+            from src.entities.enemy import PoliceCar
+            if isinstance(block, PoliceCar) and 0 < block.y < SCREEN_HEIGHT:
+                if random.random() < 0.3 * (dt * 60):
+                    color = (255, 0, 0) if random.random() < 0.5 else (0, 0, 255)
+                    self.game_state.add_particle(
+                        block.rect.centerx + random.uniform(-15, 15),
+                        block.rect.top,
+                        random.uniform(-2, 2), random.uniform(-4, -1),
+                        color, random.randint(15, 30)
+                    )
 
         blocks_to_remove = []
         for block in self.game_state.blocks:
@@ -293,12 +398,27 @@ class Game:
                 elif self.game_state.power_up_manager.is_active("shield"):
                     self.game_state.power_up_manager.active["shield"] = []
                 else:
+                    self.play_sound('crash')
                     self.game_state.shake_time = 0.3
                     self.mode = GameMode.GAME_OVER
                     if int(self.game_state.score) > self.high_score:
                         self.high_score = int(self.game_state.score)
                         self.game_state.high_score = self.high_score
                     return
+            else:
+                if not block.passed and block.rect.top > self.game_state.player.rect.bottom:
+                    block.passed = True
+                    edge_dist_x = max(0, abs(self.game_state.player.rect.centerx - block.rect.centerx) - (self.game_state.player.rect.width + block.rect.width) // 2)
+                    if edge_dist_x < 35:
+                        from src.constants import CYAN
+                        self.game_state.score += 100
+                        self.game_state.add_floating_text(
+                            self.game_state.player.rect.centerx, 
+                            self.game_state.player.rect.top - 30, 
+                            "NEAR MISS! +100", 
+                            CYAN, 
+                            self.fonts['small']
+                        )
 
         for block in blocks_to_remove:
             block.kill()
@@ -307,6 +427,7 @@ class Game:
         for power_up in self.game_state.power_ups:
             if player_hitbox.colliderect(power_up.rect):
                 power_up.kill()
+                self.play_sound('powerup')
                 self.game_state.power_up_manager.apply_powerup(power_up.type)
                 self.game_state.powerups_collected += 1
 
@@ -323,6 +444,7 @@ class Game:
         for coin in self.game_state.coins:
             if player_hitbox.colliderect(coin.rect):
                 coin.kill()
+                self.play_sound('coin')
                 self.game_state.score += 50
                 self.game_state.coins_collected += 1
                 
@@ -335,6 +457,21 @@ class Game:
                         YELLOW, random.randint(30, 50)
                     )
 
+        for hazard in self.game_state.hazards:
+            if player_hitbox.colliderect(hazard.get_hitbox()):
+                hazard.kill()
+                if not self.game_state.power_up_manager.is_active("invincible"):
+                    self.play_sound('crash')
+                    self.game_state.player.stun_timer = 1.0
+                    self.camera_sway += 50.0
+                    self.game_state.add_floating_text(
+                        self.game_state.player.rect.centerx,
+                        self.game_state.player.rect.top - 20,
+                        "SPUN OUT!",
+                        (255, 100, 0),
+                        self.fonts['small']
+                    )
+
         score_increment = 60.0 * dt
         if self.game_state.power_up_manager.is_active("double"):
             score_increment *= 2.0
@@ -342,6 +479,7 @@ class Game:
 
         if self.game_state.check_score_milestone():
             self.game_state.level_up()
+            self.atmosphere.set_level(self.game_state.level)
 
             for _ in range(20):
                 self.game_state.add_particle(
@@ -396,7 +534,7 @@ class Game:
             self.draw_background()
             self.menu_screen.render_difficulty_select(self.screen)
 
-        elif self.mode in (GameMode.PLAYING, GameMode.PAUSED, GameMode.GAME_OVER):
+        elif self.mode in (GameMode.PLAYING, GameMode.PAUSED, GameMode.GAME_OVER, GameMode.COUNTDOWN):
             shake_x, shake_y = 0, 0
             if self.mode == GameMode.PLAYING and getattr(self.game_state, "shake_time", 0.0) > 0:
                 shake_x = random.randint(-5, 5)
@@ -404,27 +542,38 @@ class Game:
 
             shake_x += int(self.camera_sway)
 
-            self.draw_background(shake_x, shake_y)
-
             if shake_x != 0 or shake_y != 0:
+                self.draw_background(shake_x, shake_y)
+
                 for block in self.game_state.blocks:
                     self.screen.blit(block.image, (block.rect.x + shake_x, block.rect.y + shake_y))
                 for power_up in self.game_state.power_ups:
                     self.screen.blit(power_up.image, (power_up.rect.x + shake_x, power_up.rect.y + shake_y))
                 for coin in self.game_state.coins:
                     self.screen.blit(coin.image, (coin.rect.x + shake_x, coin.rect.y + shake_y))
+                for hazard in self.game_state.hazards:
+                    self.screen.blit(hazard.image, (hazard.rect.x + shake_x, hazard.rect.y + shake_y))
                 for particle in self.game_state.particles:
                     self.screen.blit(particle.image, (particle.rect.x + shake_x, particle.rect.y + shake_y))
                 for text in self.game_state.floating_texts:
                     self.screen.blit(text.image, (text.rect.x + shake_x, text.rect.y + shake_y))
+                
                 self.screen.blit(self.game_state.player.image, (self.game_state.player.rect.x + shake_x, self.game_state.player.rect.y + shake_y))
+                
+                self.atmosphere.draw_lighting(self.screen, self.game_state.player, self.game_state.blocks, shake_x, shake_y)
+                self.atmosphere.draw_rain(self.screen, shake_x, shake_y)
             else:
+                self.draw_background()
                 self.game_state.blocks.draw(self.screen)
                 self.game_state.power_ups.draw(self.screen)
                 self.game_state.coins.draw(self.screen)
+                self.game_state.hazards.draw(self.screen)
                 self.game_state.particles.draw(self.screen)
                 self.game_state.floating_texts.draw(self.screen)
                 self.screen.blit(self.game_state.player.image, self.game_state.player.rect.topleft)
+                
+                self.atmosphere.draw_lighting(self.screen, self.game_state.player, self.game_state.blocks, 0, 0)
+                self.atmosphere.draw_rain(self.screen, 0, 0)
 
             if self.game_state.power_up_manager.is_active("shield"):
                 UIRenderer.render_shield_glow(self.screen, self.game_state.player.x + shake_x,
@@ -432,13 +581,15 @@ class Game:
                                              self.player_img.get_width(),
                                              self.player_img.get_height())
 
-            if self.mode in (GameMode.PLAYING, GameMode.PAUSED):
+            if self.mode in (GameMode.PLAYING, GameMode.PAUSED, GameMode.COUNTDOWN):
                 UIRenderer.render_hud(self.screen, self.game_state, self.fonts, SCREEN_WIDTH)
 
             if self.mode == GameMode.PAUSED:
                 self.menu_screen.render_pause_menu(self.screen)
             elif self.mode == GameMode.GAME_OVER:
                 self.menu_screen.render_game_over(self.screen, self.game_state)
+            elif self.mode == GameMode.COUNTDOWN:
+                self.menu_screen.render_countdown(self.screen, self.game_state.countdown_time)
 
         pygame.display.flip()
 
@@ -448,6 +599,11 @@ class Game:
         dt = 0.0
 
         while running:
+            if self.mode in (GameMode.MENU, GameMode.HOW_TO_PLAY, GameMode.DIFFICULTY_SELECT, GameMode.GAME_OVER):
+                self.set_music("menu_music")
+            elif self.mode in (GameMode.PLAYING, GameMode.PAUSED, GameMode.COUNTDOWN):
+                self.set_music("game_music")
+
             if self.mode == GameMode.MENU:
                 running = self.handle_menu_input()
                 self.update_background(dt, 500.0)
@@ -462,6 +618,12 @@ class Game:
                 self.update_gameplay(dt)
             elif self.mode == GameMode.PAUSED:
                 running = self.handle_pause_input()
+            elif self.mode == GameMode.COUNTDOWN:
+                running = self.handle_countdown_input()
+                self.update_background(dt, 300.0)
+                self.game_state.countdown_time -= dt
+                if self.game_state.countdown_time <= -1.0:
+                    self.mode = GameMode.PLAYING
             elif self.mode == GameMode.GAME_OVER:
                 running = self.handle_gameover_input()
 

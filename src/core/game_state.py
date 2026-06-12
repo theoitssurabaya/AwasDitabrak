@@ -27,10 +27,12 @@ class GameState:
         self.power_ups = pygame.sprite.Group()
         self.particles = pygame.sprite.Group()
         self.coins = pygame.sprite.Group()
+        self.hazards = pygame.sprite.Group()
         self.floating_texts = pygame.sprite.Group()
         
         # Effects
         self.shake_time = 0.0
+        self.countdown_time = 0.0
 
         # Difficulty Settings
         self.base_block_speed = INITIAL_BLOCK_SPEED * 60.0
@@ -54,6 +56,7 @@ class GameState:
         self.power_ups.empty()
         self.particles.empty()
         self.coins.empty()
+        self.hazards.empty()
         self.floating_texts.empty()
         self.power_up_manager.deactivate_all()
         self.shake_time = 0.0
