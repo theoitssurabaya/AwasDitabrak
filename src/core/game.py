@@ -99,11 +99,22 @@ class Game:
                     if self.menu_screen.selected_index == 0:
                         self.mode = GameMode.DIFFICULTY_SELECT
                     elif self.menu_screen.selected_index == 1:
-                        self.viewing_high_score = True
+                        self.mode = GameMode.HOW_TO_PLAY
                     elif self.menu_screen.selected_index == 2:
+                        self.viewing_high_score = True
+                    elif self.menu_screen.selected_index == 3:
                         return False
                 elif event.key == pygame.K_SPACE and self.viewing_high_score:
                     self.viewing_high_score = False
+        return True
+
+    def handle_how_to_play_input(self) -> bool:
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                return False
+            if event.type == pygame.KEYDOWN:
+                if event.key in (pygame.K_SPACE, pygame.K_ESCAPE, pygame.K_RETURN, pygame.K_m):
+                    self.mode = GameMode.MENU
         return True
 
     def handle_difficulty_input(self) -> bool:
@@ -215,26 +226,35 @@ class Game:
                         data["color"], random.randint(20, 40)
                     )
 
-        active_lanes = [block.target_lane for block in self.game_state.blocks]
+        # Prevent unavoidable walls by ensuring the top row always has at least one open lane
+        top_row_lanes = [block.target_lane for block in self.game_state.blocks if block.rect.y < 150]
+        # Only consider a lane 'active' (blocked) if the car is in the top half of the screen
+        active_lanes = [block.target_lane for block in self.game_state.blocks if block.rect.y < SCREEN_HEIGHT // 2]
+        
         if len(self.game_state.blocks) < self.game_state.max_blocks:
-            available_lanes = [lane for lane in ROAD_LANES if lane not in active_lanes]
-            if available_lanes and random.randint(1, 100) <= BLOCK_SPAWN_CHANCE:
-                new_lane = random.choice(available_lanes)
-                is_zig_zag = self.game_state.level >= 2 and random.random() < 0.3
-                self.game_state.blocks.add(EnemyCar(
-                    self.block_img,
-                    new_lane - block_width // 2,
-                    ROAD_TOP,
-                    new_lane,
-                    is_zig_zag
-                ))
+            if len(top_row_lanes) < len(ROAD_LANES) - 1:
+                available_lanes = [lane for lane in ROAD_LANES if lane not in active_lanes]
+                spawn_chance = BLOCK_SPAWN_CHANCE * (dt * 60.0)
+                if available_lanes and (random.random() * 100) <= spawn_chance:
+                    new_lane = random.choice(available_lanes)
+                    is_zig_zag = self.game_state.level >= 2 and random.random() < 0.3
+                    self.game_state.blocks.add(EnemyCar(
+                        self.block_img,
+                        new_lane - block_width // 2,
+                        ROAD_TOP,
+                        new_lane,
+                        is_zig_zag
+                    ))
 
-        if random.randint(1, POWERUP_SPAWN_CHANCE) == 1:
+        # Consistent dt-based spawning for power-ups and coins
+        powerup_chance = (1.0 / POWERUP_SPAWN_CHANCE) * (dt * 60.0)
+        if random.random() <= powerup_chance:
             power_lane = random.choice(ROAD_LANES)
             power_type = random.choice(list(PowerUp.POWER_UP_TYPES.keys()))
             self.game_state.power_ups.add(PowerUp(power_lane, ROAD_TOP, power_type))
 
-        if random.randint(1, 100) == 1:
+        coin_chance = (1.0 / 100.0) * (dt * 60.0)
+        if random.random() <= coin_chance:
             coin_lane = random.choice(ROAD_LANES)
             self.game_state.coins.add(Coin(coin_lane, ROAD_TOP))
 
@@ -368,6 +388,10 @@ class Game:
             else:
                 self.menu_screen.render_main_menu(self.screen, self.high_score)
 
+        elif self.mode == GameMode.HOW_TO_PLAY:
+            self.draw_background()
+            self.menu_screen.render_how_to_play(self.screen)
+
         elif self.mode == GameMode.DIFFICULTY_SELECT:
             self.draw_background()
             self.menu_screen.render_difficulty_select(self.screen)
@@ -426,6 +450,9 @@ class Game:
         while running:
             if self.mode == GameMode.MENU:
                 running = self.handle_menu_input()
+                self.update_background(dt, 500.0)
+            elif self.mode == GameMode.HOW_TO_PLAY:
+                running = self.handle_how_to_play_input()
                 self.update_background(dt, 500.0)
             elif self.mode == GameMode.DIFFICULTY_SELECT:
                 running = self.handle_difficulty_input()

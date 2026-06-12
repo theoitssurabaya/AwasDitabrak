@@ -66,7 +66,8 @@ class FloatingText(pygame.sprite.Sprite):
         self.max_lifetime = lifetime
         self.lifetime = lifetime
         
-        self.base_image = self.font.render(self.text, True, self.color)
+        from src.ui.ui_renderer import UIRenderer
+        self.base_image = UIRenderer.render_text_with_outline(self.font, self.text, self.color, outline_width=1, shadow_offset=2)
         self.image = self.base_image.copy()
         self.rect = self.image.get_rect(center=(int(self.x), int(self.y)))
         

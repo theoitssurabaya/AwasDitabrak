@@ -3,6 +3,7 @@
 import pygame
 from enum import Enum
 from dataclasses import dataclass
+from src.ui.ui_renderer import UIRenderer
 
 
 class GameMode(Enum):
@@ -12,6 +13,7 @@ class GameMode(Enum):
     PLAYING = 3
     PAUSED = 4
     GAME_OVER = 5
+    HOW_TO_PLAY = 6
 
 
 class Difficulty(Enum):
@@ -46,11 +48,20 @@ class Difficulty(Enum):
 
 def create_fonts():
     """Create pygame font objects."""
+    import os
+    font_path = "assets/fonts/font.ttf"
+    if os.path.exists(font_path):
+        return {
+            'large': pygame.font.Font(font_path, 64),
+            'medium': pygame.font.Font(font_path, 42),
+            'small': pygame.font.Font(font_path, 28),
+            'tiny': pygame.font.Font(font_path, 20),
+        }
     return {
-        'large': pygame.font.SysFont("arial", 48, bold=True),
-        'medium': pygame.font.SysFont("arial", 36),
-        'small': pygame.font.SysFont("arial", 24),
-        'tiny': pygame.font.SysFont("arial", 18),
+        'large': pygame.font.SysFont("arial", 64, bold=True),
+        'medium': pygame.font.SysFont("arial", 42),
+        'small': pygame.font.SysFont("arial", 28),
+        'tiny': pygame.font.SysFont("arial", 20),
     }
 
 
@@ -61,7 +72,7 @@ class MenuScreen:
         self.fonts = fonts
         self.screen_width = screen_width
         self.screen_height = screen_height
-        self.menu_items = ["START GAME", "VIEW HIGH SCORE", "QUIT"]
+        self.menu_items = ["START GAME", "HOW TO PLAY", "VIEW HIGH SCORE", "QUIT"]
         self.selected_index = 0
         self.difficulty_items = ["EASY", "NORMAL", "HARD"]
         self.selected_difficulty = 1
@@ -77,10 +88,10 @@ class MenuScreen:
         time_ms = pygame.time.get_ticks()
         y_offset = math.sin(time_ms * 0.003) * 10
 
-        title = self.fonts['large'].render("AWAS DITABRAK", True, YELLOW)
+        title = UIRenderer.render_text_with_outline(self.fonts['large'], "AWAS DITABRAK", YELLOW)
         screen.blit(title, (self.screen_width // 2 - title.get_width() // 2, 80 + y_offset))
 
-        subtitle = self.fonts['medium'].render("Watch Out for the Crash!", True, WHITE)
+        subtitle = UIRenderer.render_text_with_outline(self.fonts['medium'], "Watch Out for the Crash!", WHITE)
         screen.blit(subtitle, (self.screen_width // 2 - subtitle.get_width() // 2, 140 + y_offset))
 
         for i, item in enumerate(self.menu_items):
@@ -92,10 +103,10 @@ class MenuScreen:
                 color = WHITE
                 display_text = item
                 
-            text = self.fonts['medium'].render(display_text, True, color)
+            text = UIRenderer.render_text_with_outline(self.fonts['medium'], display_text, color)
             screen.blit(text, (self.screen_width // 2 - text.get_width() // 2, 240 + i * 50))
 
-        controls = self.fonts['tiny'].render("↑↓ Navigate  | ENTER Select", True, GRAY)
+        controls = UIRenderer.render_text_with_outline(self.fonts['tiny'], "↑↓ Navigate  | ENTER Select", GRAY)
         screen.blit(controls, (self.screen_width // 2 - controls.get_width() // 2, self.screen_height - 40))
 
     def render_high_score(self, screen: pygame.Surface, high_score: int):
@@ -105,14 +116,50 @@ class MenuScreen:
         overlay.fill((0, 0, 0, 180))
         screen.blit(overlay, (0, 0))
 
-        title = self.fonts['large'].render("HIGH SCORE", True, YELLOW)
+        title = UIRenderer.render_text_with_outline(self.fonts['large'], "HIGH SCORE", YELLOW)
         screen.blit(title, (self.screen_width // 2 - title.get_width() // 2, 150))
 
-        score_text = self.fonts['large'].render(str(high_score), True, CYAN)
+        score_text = UIRenderer.render_text_with_outline(self.fonts['large'], str(high_score), CYAN)
         screen.blit(score_text, (self.screen_width // 2 - score_text.get_width() // 2, 280))
 
-        back = self.fonts['medium'].render("Press SPACE to return", True, WHITE)
+        back = UIRenderer.render_text_with_outline(self.fonts['medium'], "Press SPACE to return", WHITE)
         screen.blit(back, (self.screen_width // 2 - back.get_width() // 2, self.screen_height - 60))
+
+    def render_how_to_play(self, screen: pygame.Surface):
+        from src.constants import YELLOW, WHITE, CYAN, BLUE, GREEN, RED
+        
+        overlay = pygame.Surface((self.screen_width, self.screen_height), pygame.SRCALPHA)
+        overlay.fill((0, 0, 0, 200))
+        screen.blit(overlay, (0, 0))
+
+        title = UIRenderer.render_text_with_outline(self.fonts['large'], "HOW TO PLAY", YELLOW)
+        screen.blit(title, (self.screen_width // 2 - title.get_width() // 2, 50))
+        
+        instructions = [
+            ("OBJECTIVE", YELLOW),
+            ("Avoid cars and survive as long as possible!", WHITE),
+            ("Collect coins for +50 points.", WHITE),
+            ("", WHITE),
+            ("CONTROLS", YELLOW),
+            ("A/D or Left/Right Arrows: Steer", WHITE),
+            ("SPACE: Pause", WHITE),
+            ("", WHITE),
+            ("POWER-UPS", YELLOW),
+            ("Shield (Blue): Absorbs one crash", BLUE),
+            ("Speed Boost (Green): Game moves 1.5x faster", GREEN),
+            ("Double Points (Yellow): 2x score multiplier", YELLOW),
+            ("Invincible (Red): Immune to crashes", RED),
+        ]
+        
+        y = 140
+        for text, color in instructions:
+            if text:
+                line = UIRenderer.render_text_with_outline(self.fonts['small'], text, color, outline_width=1)
+                screen.blit(line, (self.screen_width // 2 - line.get_width() // 2, y))
+            y += 30
+
+        back = UIRenderer.render_text_with_outline(self.fonts['medium'], "Press SPACE to return", WHITE)
+        screen.blit(back, (self.screen_width // 2 - back.get_width() // 2, self.screen_height - 50))
 
     def render_difficulty_select(self, screen: pygame.Surface):
         import math
@@ -125,7 +172,7 @@ class MenuScreen:
         time_ms = pygame.time.get_ticks()
         y_offset = math.sin(time_ms * 0.003) * 10
 
-        title = self.fonts['large'].render("SELECT DIFFICULTY", True, YELLOW)
+        title = UIRenderer.render_text_with_outline(self.fonts['large'], "SELECT DIFFICULTY", YELLOW)
         screen.blit(title, (self.screen_width // 2 - title.get_width() // 2, 80 + y_offset))
 
         for i, item in enumerate(self.difficulty_items):
@@ -137,7 +184,7 @@ class MenuScreen:
                 color = WHITE
                 display_text = item
                 
-            text = self.fonts['medium'].render(display_text, True, color)
+            text = UIRenderer.render_text_with_outline(self.fonts['medium'], display_text, color)
             screen.blit(text, (self.screen_width // 2 - text.get_width() // 2, 240 + i * 60))
 
         descriptions = [
@@ -145,10 +192,10 @@ class MenuScreen:
             "Balanced difficulty",
             "Faster blocks, more challenging"
         ]
-        desc = self.fonts['small'].render(descriptions[self.selected_difficulty], True, GRAY)
+        desc = UIRenderer.render_text_with_outline(self.fonts['small'], descriptions[self.selected_difficulty], GRAY)
         screen.blit(desc, (self.screen_width // 2 - desc.get_width() // 2, 450))
 
-        controls = self.fonts['tiny'].render("↑↓ Navigate  | ENTER Select", True, GRAY)
+        controls = UIRenderer.render_text_with_outline(self.fonts['tiny'], "↑↓ Navigate  | ENTER Select", GRAY)
         screen.blit(controls, (self.screen_width // 2 - controls.get_width() // 2, self.screen_height - 40))
 
     def render_pause_menu(self, screen: pygame.Surface):
@@ -161,13 +208,13 @@ class MenuScreen:
         pygame.draw.rect(screen, (50, 50, 50),
                         (self.screen_width // 2 - 150, self.screen_height // 2 - 100, 300, 200))
 
-        title = self.fonts['large'].render("PAUSED", True, YELLOW)
+        title = UIRenderer.render_text_with_outline(self.fonts['large'], "PAUSED", YELLOW)
         screen.blit(title, (self.screen_width // 2 - title.get_width() // 2, self.screen_height // 2 - 80))
 
-        resume = self.fonts['medium'].render("Press SPACE to Resume", True, WHITE)
+        resume = UIRenderer.render_text_with_outline(self.fonts['medium'], "Press SPACE to Resume", WHITE)
         screen.blit(resume, (self.screen_width // 2 - resume.get_width() // 2, self.screen_height // 2))
 
-        menu = self.fonts['medium'].render("Press M for Menu", True, WHITE)
+        menu = UIRenderer.render_text_with_outline(self.fonts['medium'], "Press M for Menu", WHITE)
         screen.blit(menu, (self.screen_width // 2 - menu.get_width() // 2, self.screen_height // 2 + 50))
 
     def render_game_over(self, screen: pygame.Surface, game_state):
@@ -181,24 +228,21 @@ class MenuScreen:
         time_ms = pygame.time.get_ticks()
         y_offset = math.sin(time_ms * 0.003) * 10
 
-        game_over_text = self.fonts['large'].render("GAME OVER", True, RED)
+        game_over_text = UIRenderer.render_text_with_outline(self.fonts['large'], "GAME OVER", RED)
         screen.blit(game_over_text, (self.screen_width // 2 - game_over_text.get_width() // 2, 80 + y_offset))
 
-        score_text = self.fonts['medium'].render(f"Final Score: {int(game_state.score)}", True, YELLOW)
+        score_text = UIRenderer.render_text_with_outline(self.fonts['medium'], f"Final Score: {int(game_state.score)}", YELLOW)
         screen.blit(score_text, (self.screen_width // 2 - score_text.get_width() // 2, 180))
 
         if game_state.score > game_state.high_score:
-            new_high = self.fonts['medium'].render("NEW HIGH SCORE!", True, CYAN)
+            new_high = UIRenderer.render_text_with_outline(self.fonts['medium'], "NEW HIGH SCORE!", CYAN)
             screen.blit(new_high, (self.screen_width // 2 - new_high.get_width() // 2, 230))
         else:
-            high_score_text = self.fonts['small'].render(f"High Score: {game_state.high_score}", True, WHITE)
+            high_score_text = UIRenderer.render_text_with_outline(self.fonts['small'], f"High Score: {game_state.high_score}", WHITE)
             screen.blit(high_score_text, (self.screen_width // 2 - high_score_text.get_width() // 2, 230))
 
-        stats = self.fonts['small'].render(
-            f"Level: {game_state.level} | Dodged: {game_state.blocks_dodged} | Coins: {game_state.coins_collected}",
-            True, WHITE
-        )
+        stats = UIRenderer.render_text_with_outline(self.fonts['small'], f"Level: {game_state.level} | Dodged: {game_state.blocks_dodged} | Coins: {game_state.coins_collected}", WHITE)
         screen.blit(stats, (self.screen_width // 2 - stats.get_width() // 2, 300))
 
-        restart_text = self.fonts['medium'].render("Press R to Restart or M for Menu", True, WHITE)
+        restart_text = UIRenderer.render_text_with_outline(self.fonts['medium'], "Press R to Restart or M for Menu", WHITE)
         screen.blit(restart_text, (self.screen_width // 2 - restart_text.get_width() // 2, self.screen_height - 80))
