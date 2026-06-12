@@ -3,6 +3,7 @@
 import pygame
 import random
 import os
+import asyncio
 from src.constants import (
     SCREEN_WIDTH, SCREEN_HEIGHT, FPS, PLAYER_CAR_IMAGE, ENEMY_CAR_IMAGE,
     ROAD_IMAGE, HIGH_SCORE_FILE, PLAYER_CAR_HEIGHT, ENEMY_CAR_HEIGHT,
@@ -417,7 +418,7 @@ class Game:
 
         pygame.display.flip()
 
-    def run(self):
+    async def run(self):
         """Main game loop."""
         running = True
         dt = 0.0
@@ -439,6 +440,7 @@ class Game:
 
             self.render()
             dt = self.clock.tick(FPS) / 1000.0
+            await asyncio.sleep(0)
 
         self.save_high_score()
         pygame.quit()
